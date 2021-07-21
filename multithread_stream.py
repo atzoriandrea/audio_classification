@@ -53,12 +53,14 @@ def audio_normalizer():
     add = False
     filled = 0
     window = np.zeros((1, 32, 16516))
+    batch = 128
+    batch_matrix = np.zeros((batch, 32, 16516))
+    last_added = 0
     while True:
         l = len(frames)
         if CHUNK * l >= 16384:
             s_arr = np.zeros((1, 1, 16516), dtype=np.int16)
             cnk = frames[:16]
-            print(len(cnk))
             s_arr[0, 0, :16384] = np.frombuffer(b''.join(cnk), dtype=np.int16)
             del frames[:8]
             add = True
@@ -69,7 +71,12 @@ def audio_normalizer():
 
         elif filled > 31 and add:
             window = np.hstack((np.delete(window, 0, 1), normalize(s_arr, std_dev, mean, scale)))
-            audio_queue.put(window)
+            batch_matrix[last_added, :, :] = window[0, :, :]
+            last_added = (last_added + 1) % batch
+            if last_added == batch-1:
+                audio_queue.put(batch_matrix)
+
+
 
 
 def audio_predictor():
@@ -77,12 +84,10 @@ def audio_predictor():
     while True:
         q_s = audio_queue.qsize()
         if q_s > 0:
-            win = np.array((q_s, 32, 16516))
-            for i in range(q_s):
-                g = audio_queue.get()
-                print(g.shape)
-                win[i, :] = g[0, :]
-            sys.stdout.write(str(np.argmax(model.predict(win), axis=-1)))
+            batch = audio_queue.get_nowait()
+            print(batch.shape)
+            sys.stdout.write(str(np.max(np.argmax(model.predict(batch), axis=-1))))
+            del batch
 
 
 listener = Thread(target=audio_listener)
