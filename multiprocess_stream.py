@@ -89,15 +89,15 @@ def audio_predictor(batch_queue, other=None):
         q_s = batch_queue.qsize()
         if q_s > 0:
             batch = batch_queue.get()
-            print(batch.shape)
-            sys.stdout.write(str(np.max(np.argmax(model.predict(batch), axis=-1))))
+            #print(batch.shape)
+            print(model.predict_classes(batch))
+            #sys.stdout.write(str(np.max(np.argmax(model.predict(batch), axis=-1))))
             del batch
 
 
 if __name__ == "__main__":
     frames = multiprocessing.Queue()
     audio_queue = multiprocessing.Queue()
-
     listener = Process(target=audio_listener, args=(frames, None))
     normalizer = Process(target=audio_normalizer, args=(frames, audio_queue))
     predictor = Process(target=audio_predictor, args=(audio_queue, None))
