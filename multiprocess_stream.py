@@ -9,30 +9,28 @@ import multiprocessing
 from queue import Queue
 
 
-
-
-
-
-
-
-
-
-
-def audio_listener(frames_list, other=None):
+def audio_listener(frames_list, other=None, source="mic"):
     CHUNK = 1024
     FORMAT = pyaudio.paInt16
     CHANNELS = 1
     RATE = 44100
     p = pyaudio.PyAudio()
-    SPEAKERS = p.get_default_output_device_info()["hostApi"]  # The modified part
-
-    p = pyaudio.PyAudio()
-    stream = p.open(format=FORMAT,
-                    channels=CHANNELS,
-                    rate=RATE,
-                    input=True,
-                    input_host_api_specific_stream_info=SPEAKERS,
-                    frames_per_buffer=CHUNK)
+    if source != "mic":
+        SPEAKERS = p.get_default_output_device_info()["hostApi"]  # The modified part
+        stream = p.open(format=FORMAT,
+                        channels=CHANNELS,
+                        rate=RATE,
+                        input=True,
+                        input_host_api_specific_stream_info=SPEAKERS,
+                        frames_per_buffer=CHUNK)
+    else:
+        MIC = p.get_default_input_device_info()["hostApi"]
+        stream = p.open(format=FORMAT,
+                        channels=CHANNELS,
+                        rate=RATE,
+                        input=True,
+                        input_host_api_specific_stream_info=MIC,
+                        frames_per_buffer=CHUNK)
     while True:
         data = stream.read(CHUNK, exception_on_overflow=False)
         frames_list.put(data)
@@ -66,7 +64,7 @@ def audio_normalizer(frames_list: multiprocessing.Queue, batch_queue: multiproce
                 cnk.append(frames_list.get())
             if len(cnk) > 8:
                 s_arr[0, 0, :16384] = np.frombuffer(b''.join(cnk), dtype=np.int16)
-                #del frames_list[:8]
+                # del frames_list[:8]
                 add = True
                 del cnk[:8]
         if filled <= 31 and add:
@@ -89,9 +87,12 @@ def audio_predictor(batch_queue, other=None):
         q_s = batch_queue.qsize()
         if q_s > 0:
             batch = batch_queue.get()
-            #print(batch.shape)
-            print(model.predict_classes(batch))
-            #sys.stdout.write(str(np.max(np.argmax(model.predict(batch), axis=-1))))
+            # print(batch.shape)
+            res = model.predict_classes(batch)
+            avg = np.average(res)
+            # print("Anomaly") if avg > 0.7 else print("Normal")
+            print(avg)
+            # sys.stdout.write(str(np.max(np.argmax(model.predict(batch), axis=-1))))
             del batch
 
 
